@@ -10,6 +10,7 @@ MVP_OUTPUT_FORMAT = "srt"
 SUPPORTED_OUTPUT_FORMATS = {MVP_OUTPUT_FORMAT}
 SUPPORTED_VAD_BACKENDS = {"auto", "firered", "fallback"}
 DEFAULT_ASR_MODEL_ID = "Qwen/Qwen3-ASR-1.7B"
+DEFAULT_ALIGN_MODEL_ID = "Qwen/Qwen3-ForcedAligner-0.6B"
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,8 @@ class AppConfig:
     asr_model_id: str
     asr_max_new_tokens: int
     asr_batch_size: int
+    align_model_id: str
+    align_batch_size: int
     python_policy: PythonPolicyEvaluation
 
 
@@ -122,6 +125,15 @@ def resolve_asr_model_id(value: str | None = None) -> str:
     return DEFAULT_ASR_MODEL_ID
 
 
+def resolve_align_model_id(value: str | None = None) -> str:
+    if value and value.strip():
+        return value.strip()
+    env_value = os.getenv("JAMAK_ALIGN_MODEL_ID")
+    if env_value and env_value.strip():
+        return env_value.strip()
+    return DEFAULT_ALIGN_MODEL_ID
+
+
 def normalize_positive_int(value: int, *, name: str) -> int:
     if value <= 0:
         raise ValueError(f"{name} must be > 0, got {value}")
@@ -138,6 +150,8 @@ def build_app_config(
     asr_model_id: str | None = None,
     asr_max_new_tokens: int = 256,
     asr_batch_size: int = 8,
+    align_model_id: str | None = None,
+    align_batch_size: int = 8,
 ) -> AppConfig:
     return AppConfig(
         device=normalize_device(device),
@@ -148,5 +162,7 @@ def build_app_config(
         asr_model_id=resolve_asr_model_id(asr_model_id),
         asr_max_new_tokens=normalize_positive_int(asr_max_new_tokens, name="asr_max_new_tokens"),
         asr_batch_size=normalize_positive_int(asr_batch_size, name="asr_batch_size"),
+        align_model_id=resolve_align_model_id(align_model_id),
+        align_batch_size=normalize_positive_int(align_batch_size, name="align_batch_size"),
         python_policy=evaluate_python_policy(),
     )

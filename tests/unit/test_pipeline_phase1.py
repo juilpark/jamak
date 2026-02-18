@@ -9,6 +9,7 @@ from jamak.core.pipeline import (
     batch_transcribe,
     transcribe_file,
 )
+from jamak.core.align import AlignedSegment, AlignmentRunResult
 from jamak.core.asr import ASRSegmentResult
 from jamak.core.vad import VadRunResult
 from jamak.infra.config import build_app_config
@@ -45,6 +46,23 @@ def test_transcribe_file_writes_phase1_artifacts(
             )
         ],
     )
+    monkeypatch.setattr(
+        "jamak.core.pipeline.align_segments",
+        lambda **_: AlignmentRunResult(
+            backend="qwen-forced-aligner",
+            message="Qwen forced aligner aligned 1/1 text segments.",
+            segments=[
+                AlignedSegment(
+                    start=0.12,
+                    end=1.31,
+                    text="테스트 문장입니다.",
+                    language="Korean",
+                    aligned=True,
+                    words=(),
+                )
+            ],
+        ),
+    )
 
     result = transcribe_file(
         TranscribeRequest(
@@ -55,17 +73,20 @@ def test_transcribe_file_writes_phase1_artifacts(
         )
     )
 
-    assert result.status == "partial"
+    assert result.status == "done"
     assert result.output_path.exists()
     assert result.audio_path.exists()
     assert result.run_path.exists()
     assert result.segments_path.exists()
+    assert result.log_path.exists()
     run_payload = json.loads(result.run_path.read_text(encoding="utf-8"))
-    assert run_payload["status"] == "partial"
-    assert run_payload["phase"] == "phase1-audio-extract"
+    assert run_payload["status"] == "done"
+    assert run_payload["phase"] == "phase1-local-cli-mvp"
     assert run_payload["vad_backend"] == "firered"
     assert run_payload["vad_segments"] == 1
     assert run_payload["asr_model_id"].startswith("Qwen/")
+    assert run_payload["align_backend"] == "qwen-forced-aligner"
+    assert run_payload["align_aligned_text_segments"] == 1
     assert "테스트 문장입니다." in result.output_path.read_text(
         encoding="utf-8"
     )

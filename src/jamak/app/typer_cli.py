@@ -43,6 +43,12 @@ def transcribe_command(
     asr_batch_size: int = typer.Option(
         8, "--asr-batch-size", help="ASR inference batch size."
     ),
+    align_model: str | None = typer.Option(
+        None, "--align-model", help="Forced aligner model id (default: Qwen/Qwen3-ForcedAligner-0.6B)."
+    ),
+    align_batch_size: int = typer.Option(
+        8, "--align-batch-size", help="Forced aligner inference batch size."
+    ),
     hf_cache: Path | None = typer.Option(
         None, "--hf-cache", help="Custom Hugging Face cache path."
     ),
@@ -60,6 +66,8 @@ def transcribe_command(
         asr_model_id=asr_model,
         asr_max_new_tokens=asr_max_new_tokens,
         asr_batch_size=asr_batch_size,
+        align_model_id=align_model,
+        align_batch_size=align_batch_size,
     )
     request = TranscribeRequest(
         input_path=input_path,
@@ -74,7 +82,8 @@ def transcribe_command(
         f"- output srt: {result.output_path}\n"
         f"- extracted audio: {result.audio_path}\n"
         f"- run metadata: {result.run_path}\n"
-        f"- segments metadata: {result.segments_path}"
+        f"- segments metadata: {result.segments_path}\n"
+        f"- run log: {result.log_path}"
     )
     if result.status == "failed":
         raise typer.Exit(code=2)
@@ -106,6 +115,12 @@ def batch_command(
     asr_batch_size: int = typer.Option(
         8, "--asr-batch-size", help="ASR inference batch size."
     ),
+    align_model: str | None = typer.Option(
+        None, "--align-model", help="Forced aligner model id (default: Qwen/Qwen3-ForcedAligner-0.6B)."
+    ),
+    align_batch_size: int = typer.Option(
+        8, "--align-batch-size", help="Forced aligner inference batch size."
+    ),
     hf_cache: Path | None = typer.Option(
         None, "--hf-cache", help="Custom Hugging Face cache path."
     ),
@@ -123,6 +138,8 @@ def batch_command(
         asr_model_id=asr_model,
         asr_max_new_tokens=asr_max_new_tokens,
         asr_batch_size=asr_batch_size,
+        align_model_id=align_model,
+        align_batch_size=align_batch_size,
     )
     request = BatchRequest(
         input_dir=input_dir,
@@ -161,6 +178,12 @@ def doctor_command(
     asr_batch_size: int = typer.Option(
         8, "--asr-batch-size", help="ASR inference batch size."
     ),
+    align_model: str | None = typer.Option(
+        None, "--align-model", help="Forced aligner model id (default: Qwen/Qwen3-ForcedAligner-0.6B)."
+    ),
+    align_batch_size: int = typer.Option(
+        8, "--align-batch-size", help="Forced aligner inference batch size."
+    ),
     hf_cache: Path | None = typer.Option(
         None, "--hf-cache", help="Custom Hugging Face cache path."
     ),
@@ -175,6 +198,8 @@ def doctor_command(
         asr_model_id=asr_model,
         asr_max_new_tokens=asr_max_new_tokens,
         asr_batch_size=asr_batch_size,
+        align_model_id=align_model,
+        align_batch_size=align_batch_size,
     )
     report = collect_doctor_report(config)
     typer.echo(render_doctor_report(report))
