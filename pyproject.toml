@@ -1,7 +1,24 @@
 [project]
 name = "jamak"
 version = "0.1.0"
-description = "Add your description here"
+description = "CLI-first subtitle generation pipeline with VAD, ASR, and forced alignment."
 readme = "README.md"
-requires-python = ">=3.14"
-dependencies = []
+requires-python = ">=3.12"
+dependencies = [
+    "typer>=0.16.0",
+]
+
+[project.scripts]
+jamak = "jamak.app.typer_cli:run"
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/jamak"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+]
