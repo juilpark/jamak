@@ -12,6 +12,7 @@ from jamak.core.pipeline import (
 )
 from jamak.infra.config import build_app_config
 from jamak.infra.doctor import collect_doctor_report, render_doctor_report
+from jamak.infra.language import normalize_and_validate_language
 
 app = typer.Typer(
     name="jamak",
@@ -20,13 +21,24 @@ app = typer.Typer(
 )
 
 
+def _validate_language_option(language: str | None) -> str | None:
+    if language is None:
+        return None
+    try:
+        return normalize_and_validate_language(language)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--language") from exc
+
+
 @app.command("transcribe")
 def transcribe_command(
     input_path: Path = typer.Argument(..., help="Input audio/video file path."),
     output_dir: Path = typer.Option(
         Path("./outputs"), "--output-dir", "-o", help="Directory for output files."
     ),
-    language: str | None = typer.Option(None, "--language", help="Language code hint."),
+    language: str | None = typer.Option(
+        None, "--language", help="Forced language name (e.g. Japanese)."
+    ),
     device: str = typer.Option("auto", "--device", help="auto|cpu|cuda (MVP)"),
     vad_backend: str = typer.Option(
         "auto", "--vad-backend", help="auto|firered|fallback"
@@ -56,6 +68,7 @@ def transcribe_command(
     """Transcribe a single file."""
     if not input_path.exists():
         raise typer.BadParameter(f"Input not found: {input_path}")
+    language = _validate_language_option(language)
 
     config = build_app_config(
         device=device,
@@ -98,7 +111,9 @@ def batch_command(
     glob_pattern: str = typer.Option(
         "*.*", "--glob", help="Glob pattern to select inputs (default: *.*)."
     ),
-    language: str | None = typer.Option(None, "--language", help="Language code hint."),
+    language: str | None = typer.Option(
+        None, "--language", help="Forced language name (e.g. Japanese)."
+    ),
     device: str = typer.Option("auto", "--device", help="auto|cpu|cuda (MVP)"),
     vad_backend: str = typer.Option(
         "auto", "--vad-backend", help="auto|firered|fallback"
@@ -128,6 +143,7 @@ def batch_command(
     """Run batch transcription."""
     if not input_dir.exists() or not input_dir.is_dir():
         raise typer.BadParameter(f"Input directory not found: {input_dir}")
+    language = _validate_language_option(language)
 
     config = build_app_config(
         device=device,
