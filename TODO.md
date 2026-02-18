@@ -23,7 +23,7 @@
 
 ## Phase 1 (로컬 CLI MVP)
 
-- [ ] 입력 파일에서 오디오 추출 (`ffmpeg`)
+- [x] 입력 파일에서 오디오 추출 (`ffmpeg`)
 - [ ] FireRedVAD 연동
 - [ ] Qwen3-ASR-1.7B 연동
 - [ ] Qwen3-ForcedAligner-0.6B 연동

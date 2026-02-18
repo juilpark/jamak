@@ -3,8 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from jamak.core.subtitle import write_srt
 from jamak.infra.config import AppConfig
-from jamak.infra.storage import ensure_directory
+from jamak.infra.ffmpeg import extract_audio, probe_duration_seconds
+from jamak.infra.storage import ensure_directory, write_json
+from jamak.schemas.subtitle import SubtitleCue
 
 
 @dataclass(frozen=True)
@@ -19,6 +22,9 @@ class TranscribeRequest:
 class TranscribeResult:
     input_path: Path
     output_path: Path
+    audio_path: Path
+    run_path: Path
+    segments_path: Path
     status: str
     message: str
 
@@ -35,35 +41,158 @@ class BatchRequest:
 @dataclass(frozen=True)
 class BatchResult:
     total: int
-    planned_outputs: int
+    succeeded: int
+    partial: int
+    failed: int
     status: str
     message: str
 
 
+def _build_artifact_paths(input_path: Path, output_dir: Path) -> tuple[Path, Path, Path, Path]:
+    stem = input_path.stem
+    output_path = output_dir / f"{stem}.srt"
+    meta_dir = output_dir / ".jamak" / stem
+    audio_path = meta_dir / "audio.wav"
+    run_path = meta_dir / "run.json"
+    segments_path = meta_dir / "segments.json"
+    return output_path, audio_path, run_path, segments_path
+
+
+def _placeholder_cues(duration_seconds: float | None) -> list[SubtitleCue]:
+    if duration_seconds is None:
+        end = 3.0
+    else:
+        end = max(1.0, min(duration_seconds, 10.0))
+    return [
+        SubtitleCue(
+            start=0.0,
+            end=end,
+            text="[Phase 1] Audio extracted. ASR/Alignment integration pending.",
+        )
+    ]
+
+
 def transcribe_file(request: TranscribeRequest) -> TranscribeResult:
-    """Phase 0 skeleton for a single-file transcription run."""
+    """Phase 1 step: extract audio and emit baseline artifacts."""
     ensure_directory(request.output_dir)
-    output_path = request.output_dir / f"{request.input_path.stem}.srt"
-    return TranscribeResult(
-        input_path=request.input_path,
-        output_path=output_path,
-        status="planned",
-        message="Pipeline skeleton ready. Implement VAD/ASR/Align steps in Phase 1.",
+    output_path, audio_path, run_path, segments_path = _build_artifact_paths(
+        request.input_path, request.output_dir
     )
+    ensure_directory(audio_path.parent)
+    try:
+        extract_audio(request.input_path, audio_path)
+        duration_seconds = probe_duration_seconds(audio_path)
+        write_srt(_placeholder_cues(duration_seconds), output_path)
+        write_json(
+            segments_path,
+            {
+                "segments": [],
+                "duration_seconds": duration_seconds,
+                "note": "VAD/ASR/align not wired yet. Placeholder output.",
+            },
+        )
+        write_json(
+            run_path,
+            {
+                "status": "partial",
+                "phase": "phase1-audio-extract",
+                "input_path": str(request.input_path),
+                "audio_path": str(audio_path),
+                "output_srt_path": str(output_path),
+                "segments_path": str(segments_path),
+                "language": request.language,
+                "device": request.config.device,
+                "duration_seconds": duration_seconds,
+            },
+        )
+        return TranscribeResult(
+            input_path=request.input_path,
+            output_path=output_path,
+            audio_path=audio_path,
+            run_path=run_path,
+            segments_path=segments_path,
+            status="partial",
+            message="Audio extraction complete. VAD/ASR/align integration pending.",
+        )
+    except Exception as exc:
+        write_json(
+            run_path,
+            {
+                "status": "failed",
+                "phase": "phase1-audio-extract",
+                "input_path": str(request.input_path),
+                "audio_path": str(audio_path),
+                "output_srt_path": str(output_path),
+                "segments_path": str(segments_path),
+                "language": request.language,
+                "device": request.config.device,
+                "error": str(exc),
+            },
+        )
+        return TranscribeResult(
+            input_path=request.input_path,
+            output_path=output_path,
+            audio_path=audio_path,
+            run_path=run_path,
+            segments_path=segments_path,
+            status="failed",
+            message=str(exc),
+        )
 
 
 def batch_transcribe(request: BatchRequest) -> BatchResult:
-    """Phase 0 skeleton for batch runs."""
+    """Phase 1 step: batch audio extraction and artifact generation."""
     ensure_directory(request.output_dir)
     files = [
         path
         for path in sorted(request.input_dir.glob(request.glob_pattern))
         if path.is_file()
     ]
+    if not files:
+        return BatchResult(
+            total=0,
+            succeeded=0,
+            partial=0,
+            failed=0,
+            status="failed",
+            message="No input files matched the glob pattern.",
+        )
+    succeeded = 0
+    partial = 0
+    failed = 0
+    for input_path in files:
+        result = transcribe_file(
+            TranscribeRequest(
+                input_path=input_path,
+                output_dir=request.output_dir,
+                language=request.language,
+                config=request.config,
+            )
+        )
+        if result.status == "done":
+            succeeded += 1
+        elif result.status == "partial":
+            partial += 1
+        else:
+            failed += 1
+
+    if failed and not (succeeded or partial):
+        status = "failed"
+    elif failed:
+        status = "partial"
+    elif partial:
+        status = "partial"
+    else:
+        status = "done"
+    message = (
+        f"Batch complete: total={len(files)} succeeded={succeeded} "
+        f"partial={partial} failed={failed}."
+    )
     return BatchResult(
         total=len(files),
-        planned_outputs=len(files),
-        status="planned",
-        message="Batch skeleton ready. Implement VAD/ASR/Align steps in Phase 1.",
+        succeeded=succeeded,
+        partial=partial,
+        failed=failed,
+        status=status,
+        message=message,
     )
-

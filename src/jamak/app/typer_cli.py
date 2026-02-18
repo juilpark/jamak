@@ -32,7 +32,7 @@ def transcribe_command(
         None, "--hf-cache", help="Custom Hugging Face cache path."
     ),
 ) -> None:
-    """Transcribe a single file (pipeline wiring is stubbed in Phase 0)."""
+    """Transcribe a single file."""
     if not input_path.exists():
         raise typer.BadParameter(f"Input not found: {input_path}")
 
@@ -47,9 +47,12 @@ def transcribe_command(
     typer.echo(
         f"[{result.status}] {result.message}\n"
         f"- input: {result.input_path}\n"
-        f"- planned output: {result.output_path}"
+        f"- output srt: {result.output_path}\n"
+        f"- extracted audio: {result.audio_path}\n"
+        f"- run metadata: {result.run_path}\n"
+        f"- segments metadata: {result.segments_path}"
     )
-    if result.status != "done":
+    if result.status == "failed":
         raise typer.Exit(code=2)
 
 
@@ -68,7 +71,7 @@ def batch_command(
         None, "--hf-cache", help="Custom Hugging Face cache path."
     ),
 ) -> None:
-    """Run batch transcription (pipeline wiring is stubbed in Phase 0)."""
+    """Run batch transcription."""
     if not input_dir.exists() or not input_dir.is_dir():
         raise typer.BadParameter(f"Input directory not found: {input_dir}")
 
@@ -84,9 +87,11 @@ def batch_command(
     typer.echo(
         f"[{result.status}] {result.message}\n"
         f"- files discovered: {result.total}\n"
-        f"- planned outputs: {result.planned_outputs}"
+        f"- succeeded: {result.succeeded}\n"
+        f"- partial: {result.partial}\n"
+        f"- failed: {result.failed}"
     )
-    if result.status != "done":
+    if result.status == "failed":
         raise typer.Exit(code=2)
 
 
@@ -108,4 +113,3 @@ def doctor_command(
 def run() -> None:
     """Console-script entrypoint."""
     app()
-
