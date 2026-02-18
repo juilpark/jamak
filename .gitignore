@@ -8,3 +8,11 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Local runtime artifacts
+.DS_Store
+outputs/
+pretrained_models/
+external/
+test_audio.mp3
+test_video.mp4

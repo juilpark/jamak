@@ -9,7 +9,6 @@ PYTHON_POLICY_CHAIN: tuple[tuple[int, int], ...] = ((3, 14), (3, 13), (3, 12))
 MVP_OUTPUT_FORMAT = "srt"
 SUPPORTED_OUTPUT_FORMATS = {MVP_OUTPUT_FORMAT}
 SUPPORTED_VAD_BACKENDS = {"auto", "firered", "fallback"}
-DEFAULT_FIRERED_VAD_MODEL_DIR = Path("pretrained_models/FireRedVAD/VAD")
 
 
 @dataclass(frozen=True)
@@ -25,7 +24,7 @@ class AppConfig:
     hf_cache: Path
     output_format: str
     vad_backend: str
-    vad_model_dir: Path
+    vad_model_dir: Path | None
     python_policy: PythonPolicyEvaluation
 
 
@@ -100,13 +99,14 @@ def normalize_vad_backend(value: str) -> str:
     return backend
 
 
-def resolve_vad_model_dir(custom_path: Path | None = None) -> Path:
+def resolve_vad_model_dir(custom_path: Path | None = None) -> Path | None:
     if custom_path is not None:
         return custom_path.expanduser().resolve()
     env_path = os.getenv("JAMAK_FIRERED_VAD_DIR")
     if env_path:
         return Path(env_path).expanduser().resolve()
-    return DEFAULT_FIRERED_VAD_MODEL_DIR.resolve()
+    # None means "use huggingface_hub default cache behavior".
+    return None
 
 
 def build_app_config(

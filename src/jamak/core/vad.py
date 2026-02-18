@@ -8,6 +8,9 @@ from typing import Any
 from jamak.infra.config import AppConfig
 from jamak.schemas.segment import SpeechSegment
 
+FIRERED_VAD_REPO_ID = "FireRedTeam/FireRedVAD"
+FIRERED_REQUIRED_FILES = ("model.pth.tar", "cmvn.ark")
+
 
 @dataclass(frozen=True)
 class VadRunResult:
@@ -47,22 +50,70 @@ def _parse_timestamps(
     return segments
 
 
+def _is_model_dir_ready(model_dir: Path) -> bool:
+    return all((model_dir / filename).exists() for filename in FIRERED_REQUIRED_FILES)
+
+
+def _resolve_firered_model_dir(requested_path: Path | None) -> Path:
+    from huggingface_hub import snapshot_download
+
+    if requested_path is None:
+        snapshot_dir = Path(
+            snapshot_download(
+                repo_id=FIRERED_VAD_REPO_ID,
+                allow_patterns=["VAD/*", "README.md", "config.yaml"],
+            )
+        )
+        model_dir = snapshot_dir / "VAD"
+        if not _is_model_dir_ready(model_dir):
+            raise RuntimeError(
+                "FireRedVAD model files not found under huggingface cache snapshot."
+            )
+        return model_dir
+
+    model_dir = requested_path.expanduser().resolve()
+    if _is_model_dir_ready(model_dir):
+        return model_dir
+
+    # Accept either ".../VAD" or repo root path.
+    if model_dir.name == "VAD":
+        root_dir = model_dir.parent
+    else:
+        root_dir = model_dir
+        model_dir = root_dir / "VAD"
+        if _is_model_dir_ready(model_dir):
+            return model_dir
+
+    root_dir.mkdir(parents=True, exist_ok=True)
+    snapshot_download(
+        repo_id=FIRERED_VAD_REPO_ID,
+        local_dir=str(root_dir),
+        allow_patterns=["VAD/*", "README.md", "config.yaml"],
+    )
+    if not _is_model_dir_ready(model_dir):
+        raise RuntimeError(
+            f"FireRedVAD model files not found at {model_dir} after download."
+        )
+    return model_dir
+
+
 @lru_cache(maxsize=2)
 def _load_firered_model(model_dir: str, use_gpu: bool) -> Any:
     try:
-        from fireredasr2s.fireredvad import FireRedVad, FireRedVadConfig
+        from jamak.vendor.fireredvad import FireRedVad, FireRedVadConfig
     except ImportError as exc:
         raise RuntimeError(
-            "FireRedVAD backend is not installed. Install FireRedASR2S first."
+            "Vendored FireRedVAD backend import failed. Check installed dependencies."
         ) from exc
     config = FireRedVadConfig(use_gpu=use_gpu)
     return FireRedVad.from_pretrained(model_dir, config)
 
 
 def _detect_with_firered(
-    audio_path: Path, model_dir: Path, use_gpu: bool
+    audio_path: Path, model_dir: Path | None, use_gpu: bool
 ) -> list[SpeechSegment]:
-    model = _load_firered_model(str(model_dir), use_gpu)
+    resolved_dir = _resolve_firered_model_dir(model_dir)
+    model = _load_firered_model(str(resolved_dir), use_gpu)
     result, probs = model.detect(str(audio_path))
     timestamps = result.get("timestamps", []) if isinstance(result, dict) else []
     if not isinstance(timestamps, list):
@@ -110,4 +161,3 @@ def detect_speech_segments(
         segments=fallback,
         message="Fallback VAD selected by configuration.",
     )
-
