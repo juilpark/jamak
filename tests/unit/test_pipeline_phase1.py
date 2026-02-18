@@ -9,6 +9,7 @@ from jamak.core.pipeline import (
     batch_transcribe,
     transcribe_file,
 )
+from jamak.core.asr import ASRSegmentResult
 from jamak.core.vad import VadRunResult
 from jamak.infra.config import build_app_config
 from jamak.schemas.segment import SpeechSegment
@@ -34,6 +35,16 @@ def test_transcribe_file_writes_phase1_artifacts(
             message="FireRedVAD detected 1 segments.",
         ),
     )
+    monkeypatch.setattr(
+        "jamak.core.pipeline.transcribe_segments",
+        lambda **_: [
+            ASRSegmentResult(
+                language="Korean",
+                text="테스트 문장입니다.",
+                raw="language Korean<asr_text>테스트 문장입니다.",
+            )
+        ],
+    )
 
     result = transcribe_file(
         TranscribeRequest(
@@ -54,7 +65,8 @@ def test_transcribe_file_writes_phase1_artifacts(
     assert run_payload["phase"] == "phase1-audio-extract"
     assert run_payload["vad_backend"] == "firered"
     assert run_payload["vad_segments"] == 1
-    assert "ASR/Alignment integration pending" in result.output_path.read_text(
+    assert run_payload["asr_model_id"].startswith("Qwen/")
+    assert "테스트 문장입니다." in result.output_path.read_text(
         encoding="utf-8"
     )
 

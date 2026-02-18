@@ -34,6 +34,15 @@ def transcribe_command(
     vad_model_dir: Path | None = typer.Option(
         None, "--vad-model-dir", help="Path to FireRedVAD model directory."
     ),
+    asr_model: str | None = typer.Option(
+        None, "--asr-model", help="ASR model id (default: Qwen/Qwen3-ASR-1.7B)."
+    ),
+    asr_max_new_tokens: int = typer.Option(
+        256, "--asr-max-new-tokens", help="Maximum ASR generation tokens per segment."
+    ),
+    asr_batch_size: int = typer.Option(
+        8, "--asr-batch-size", help="ASR inference batch size."
+    ),
     hf_cache: Path | None = typer.Option(
         None, "--hf-cache", help="Custom Hugging Face cache path."
     ),
@@ -48,6 +57,9 @@ def transcribe_command(
         output_format="srt",
         vad_backend=vad_backend,
         vad_model_dir=vad_model_dir,
+        asr_model_id=asr_model,
+        asr_max_new_tokens=asr_max_new_tokens,
+        asr_batch_size=asr_batch_size,
     )
     request = TranscribeRequest(
         input_path=input_path,
@@ -85,6 +97,15 @@ def batch_command(
     vad_model_dir: Path | None = typer.Option(
         None, "--vad-model-dir", help="Path to FireRedVAD model directory."
     ),
+    asr_model: str | None = typer.Option(
+        None, "--asr-model", help="ASR model id (default: Qwen/Qwen3-ASR-1.7B)."
+    ),
+    asr_max_new_tokens: int = typer.Option(
+        256, "--asr-max-new-tokens", help="Maximum ASR generation tokens per segment."
+    ),
+    asr_batch_size: int = typer.Option(
+        8, "--asr-batch-size", help="ASR inference batch size."
+    ),
     hf_cache: Path | None = typer.Option(
         None, "--hf-cache", help="Custom Hugging Face cache path."
     ),
@@ -99,6 +120,9 @@ def batch_command(
         output_format="srt",
         vad_backend=vad_backend,
         vad_model_dir=vad_model_dir,
+        asr_model_id=asr_model,
+        asr_max_new_tokens=asr_max_new_tokens,
+        asr_batch_size=asr_batch_size,
     )
     request = BatchRequest(
         input_dir=input_dir,
@@ -128,6 +152,15 @@ def doctor_command(
     vad_model_dir: Path | None = typer.Option(
         None, "--vad-model-dir", help="Path to FireRedVAD model directory."
     ),
+    asr_model: str | None = typer.Option(
+        None, "--asr-model", help="ASR model id (default: Qwen/Qwen3-ASR-1.7B)."
+    ),
+    asr_max_new_tokens: int = typer.Option(
+        256, "--asr-max-new-tokens", help="Maximum ASR generation tokens per segment."
+    ),
+    asr_batch_size: int = typer.Option(
+        8, "--asr-batch-size", help="ASR inference batch size."
+    ),
     hf_cache: Path | None = typer.Option(
         None, "--hf-cache", help="Custom Hugging Face cache path."
     ),
@@ -139,6 +172,9 @@ def doctor_command(
         output_format="srt",
         vad_backend=vad_backend,
         vad_model_dir=vad_model_dir,
+        asr_model_id=asr_model,
+        asr_max_new_tokens=asr_max_new_tokens,
+        asr_batch_size=asr_batch_size,
     )
     report = collect_doctor_report(config)
     typer.echo(render_doctor_report(report))

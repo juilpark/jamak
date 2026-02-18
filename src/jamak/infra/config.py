@@ -9,6 +9,7 @@ PYTHON_POLICY_CHAIN: tuple[tuple[int, int], ...] = ((3, 14), (3, 13), (3, 12))
 MVP_OUTPUT_FORMAT = "srt"
 SUPPORTED_OUTPUT_FORMATS = {MVP_OUTPUT_FORMAT}
 SUPPORTED_VAD_BACKENDS = {"auto", "firered", "fallback"}
+DEFAULT_ASR_MODEL_ID = "Qwen/Qwen3-ASR-1.7B"
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,9 @@ class AppConfig:
     output_format: str
     vad_backend: str
     vad_model_dir: Path | None
+    asr_model_id: str
+    asr_max_new_tokens: int
+    asr_batch_size: int
     python_policy: PythonPolicyEvaluation
 
 
@@ -109,6 +113,21 @@ def resolve_vad_model_dir(custom_path: Path | None = None) -> Path | None:
     return None
 
 
+def resolve_asr_model_id(value: str | None = None) -> str:
+    if value and value.strip():
+        return value.strip()
+    env_value = os.getenv("JAMAK_ASR_MODEL_ID")
+    if env_value and env_value.strip():
+        return env_value.strip()
+    return DEFAULT_ASR_MODEL_ID
+
+
+def normalize_positive_int(value: int, *, name: str) -> int:
+    if value <= 0:
+        raise ValueError(f"{name} must be > 0, got {value}")
+    return int(value)
+
+
 def build_app_config(
     *,
     device: str = "auto",
@@ -116,6 +135,9 @@ def build_app_config(
     output_format: str = MVP_OUTPUT_FORMAT,
     vad_backend: str = "auto",
     vad_model_dir: Path | None = None,
+    asr_model_id: str | None = None,
+    asr_max_new_tokens: int = 256,
+    asr_batch_size: int = 8,
 ) -> AppConfig:
     return AppConfig(
         device=normalize_device(device),
@@ -123,5 +145,8 @@ def build_app_config(
         output_format=normalize_output_format(output_format),
         vad_backend=normalize_vad_backend(vad_backend),
         vad_model_dir=resolve_vad_model_dir(vad_model_dir),
+        asr_model_id=resolve_asr_model_id(asr_model_id),
+        asr_max_new_tokens=normalize_positive_int(asr_max_new_tokens, name="asr_max_new_tokens"),
+        asr_batch_size=normalize_positive_int(asr_batch_size, name="asr_batch_size"),
         python_policy=evaluate_python_policy(),
     )

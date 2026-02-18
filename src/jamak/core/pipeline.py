@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from jamak.core.asr import transcribe_segments
 from jamak.core.subtitle import write_srt
 from jamak.core.vad import detect_speech_segments
 from jamak.infra.config import AppConfig
@@ -60,29 +61,38 @@ def _build_artifact_paths(input_path: Path, output_dir: Path) -> tuple[Path, Pat
     return output_path, audio_path, run_path, segments_path
 
 
-def _placeholder_cues(
-    segments: list[SpeechSegment], duration_seconds: float | None
+def _build_subtitle_cues(
+    segments: list[SpeechSegment],
+    texts: list[str],
+    duration_seconds: float | None,
 ) -> list[SubtitleCue]:
+    cues: list[SubtitleCue] = []
+    for index, segment in enumerate(segments):
+        if index >= len(texts):
+            break
+        text = texts[index].strip()
+        if not text:
+            continue
+        start = max(0.0, float(segment.start))
+        end = max(start + 0.01, float(segment.end))
+        cues.append(SubtitleCue(start=start, end=end, text=text))
+    if cues:
+        return cues
     if segments:
         first = segments[0]
-        start = first.start
-        end = first.end
-        text = (
-            f"[Phase 1] VAD detected {len(segments)} segments. "
-            "ASR/Alignment integration pending."
-        )
-    else:
-        if duration_seconds is None:
-            end = 3.0
-        else:
-            end = max(1.0, min(duration_seconds, 10.0))
-        start = 0.0
-        text = "[Phase 1] Audio extracted. ASR/Alignment integration pending."
+        return [
+            SubtitleCue(
+                start=float(first.start),
+                end=max(float(first.end), float(first.start) + 0.01),
+                text="[Phase 2] ASR produced empty text. Alignment pending.",
+            )
+        ]
+    fallback_end = 3.0 if duration_seconds is None else max(1.0, min(duration_seconds, 10.0))
     return [
         SubtitleCue(
-            start=start,
-            end=end,
-            text=text,
+            start=0.0,
+            end=fallback_end,
+            text="[Phase 2] No speech segments found. Alignment pending.",
         )
     ]
 
@@ -102,7 +112,20 @@ def transcribe_file(request: TranscribeRequest) -> TranscribeResult:
             config=request.config,
             duration_seconds=duration_seconds,
         )
-        write_srt(_placeholder_cues(vad_result.segments, duration_seconds), output_path)
+        asr_results = transcribe_segments(
+            audio_path=audio_path,
+            segments=vad_result.segments,
+            config=request.config,
+            language=request.language,
+        )
+        write_srt(
+            _build_subtitle_cues(
+                vad_result.segments,
+                [result.text for result in asr_results],
+                duration_seconds,
+            ),
+            output_path,
+        )
         write_json(
             segments_path,
             {
@@ -111,13 +134,20 @@ def transcribe_file(request: TranscribeRequest) -> TranscribeResult:
                         "start": segment.start,
                         "end": segment.end,
                         "confidence": segment.confidence,
+                        "text": (
+                            asr_results[index].text if index < len(asr_results) else ""
+                        ),
+                        "language": (
+                            asr_results[index].language if index < len(asr_results) else ""
+                        ),
                     }
-                    for segment in vad_result.segments
+                    for index, segment in enumerate(vad_result.segments)
                 ],
                 "duration_seconds": duration_seconds,
                 "vad_backend": vad_result.backend,
                 "vad_message": vad_result.message,
-                "note": "ASR/align not wired yet. Placeholder subtitle output.",
+                "asr_model_id": request.config.asr_model_id,
+                "note": "ASR done. Forced alignment pending.",
             },
         )
         write_json(
@@ -135,6 +165,10 @@ def transcribe_file(request: TranscribeRequest) -> TranscribeResult:
                 "vad_backend": vad_result.backend,
                 "vad_segments": len(vad_result.segments),
                 "vad_message": vad_result.message,
+                "asr_model_id": request.config.asr_model_id,
+                "asr_results": len(asr_results),
+                "asr_max_new_tokens": request.config.asr_max_new_tokens,
+                "asr_batch_size": request.config.asr_batch_size,
             },
         )
         return TranscribeResult(
@@ -145,8 +179,8 @@ def transcribe_file(request: TranscribeRequest) -> TranscribeResult:
             segments_path=segments_path,
             status="partial",
             message=(
-                "Audio extraction complete. "
-                f"{vad_result.message} ASR/align integration pending."
+                "Audio extraction and ASR complete. "
+                f"{vad_result.message} Forced alignment integration pending."
             ),
         )
     except Exception as exc:
