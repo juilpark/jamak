@@ -10,6 +10,12 @@ Current Phase 1 pipeline:
 4. forced alignment (`Qwen3-ForcedAligner`)
 5. SRT output + metadata/log artifacts
 
+Phase 4 translation (adapter-based):
+
+1. provider adapter interface
+2. OpenRouter adapter (first provider)
+3. SRT -> translated SRT CLI flow
+
 ## Requirements
 
 - Python `3.13` (policy: `3.14 -> 3.13 -> 3.12`)
@@ -45,6 +51,17 @@ uv sync
 ./.venv/bin/python main.py batch . -o outputs --glob '*.mp3'
 ```
 
+### Translate SRT (OpenRouter adapter)
+
+```bash
+OPENROUTER_API_KEY=... \
+./.venv/bin/python main.py translate outputs/test_audio.srt \
+  -t Korean \
+  --provider openrouter \
+  --model openai/gpt-4o-mini \
+  --max-concurrency 4
+```
+
 ### Offline reproducible run (recommended after model cache warmup)
 
 ```bash
@@ -65,4 +82,5 @@ For input `foo.mp4`:
 
 - Default cache follows Hugging Face standard cache (`HF_HOME` / `TRANSFORMERS_CACHE`).
 - Network DNS issue may cause model resolution retries. Offline mode avoids that once cache is ready.
-- Phase 2+ (`FastAPI`, Docker/NAS, translation) is tracked in `TODO.md`.
+- Translation uses adapter architecture: OpenRouter is first provider, more providers can be added with new adapters.
+- Phase 2+ (`FastAPI`, Docker/NAS, provider expansion) is tracked in `TODO.md`.

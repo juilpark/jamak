@@ -45,8 +45,15 @@
 
 - [ ] Phase 2: FastAPI 기반 WebUI
 - [ ] Phase 3: Docker + CUDA 기반 NAS 운영
-- [ ] Phase 4: OpenAI-Compatible 번역 기능
+- [ ] Phase 4: OpenAI-Compatible 번역 기능 (OpenRouter adapter 우선)
 - [ ] Phase 5: ROCm/Intel 런타임 검증 및 패키징
+
+## Phase 4 (번역) 진행상황
+
+- [x] Provider adapter 인터페이스 도입
+- [x] OpenRouter adapter 구현
+- [x] `jamak translate` CLI 추가 (SRT -> translated SRT)
+- [ ] Provider별 adapter 확장 (예: OpenAI, Anthropic, Gemini)
 
 ## Phase 4 이후 재개 메모
 
