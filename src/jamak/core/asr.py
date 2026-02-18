@@ -109,6 +109,15 @@ def _load_runtime(
         cache_dir=cache_dir,
         fix_mistral_regex=True,
     )
+    # Avoid repetitive generation warnings by setting a deterministic pad token.
+    pad_id = getattr(model.generation_config, "pad_token_id", None)
+    if pad_id is None:
+        tokenizer = getattr(processor, "tokenizer", None)
+        tokenizer_pad_id = getattr(tokenizer, "pad_token_id", None) if tokenizer else None
+        eos_id = getattr(model.generation_config, "eos_token_id", None)
+        model.generation_config.pad_token_id = (
+            tokenizer_pad_id if tokenizer_pad_id is not None else eos_id
+        )
     return _ASRRuntime(model=model, processor=processor)
 
 
@@ -159,6 +168,14 @@ def transcribe_segments(
     audio = _read_audio(audio_path)
     clips = [_slice_segment(audio, segment) for segment in segments]
     prompts = [_build_prompt(runtime.processor, forced_language) for _ in clips]
+    tokenizer = getattr(runtime.processor, "tokenizer", None)
+    pad_token_id = (
+        getattr(tokenizer, "pad_token_id", None)
+        if tokenizer is not None
+        else None
+    )
+    if pad_token_id is None:
+        pad_token_id = getattr(runtime.model.generation_config, "eos_token_id", None)
 
     outputs: list[ASRSegmentResult] = []
     batch_size = config.asr_batch_size
@@ -176,6 +193,7 @@ def transcribe_segments(
             generated = runtime.model.generate(
                 **inputs,
                 max_new_tokens=config.asr_max_new_tokens,
+                pad_token_id=pad_token_id,
             )
         sequences = generated.sequences if hasattr(generated, "sequences") else generated
         decoded = runtime.processor.batch_decode(
