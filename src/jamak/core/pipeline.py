@@ -4,9 +4,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from jamak.core.subtitle import write_srt
+from jamak.core.vad import detect_speech_segments
 from jamak.infra.config import AppConfig
 from jamak.infra.ffmpeg import extract_audio, probe_duration_seconds
 from jamak.infra.storage import ensure_directory, write_json
+from jamak.schemas.segment import SpeechSegment
 from jamak.schemas.subtitle import SubtitleCue
 
 
@@ -58,16 +60,29 @@ def _build_artifact_paths(input_path: Path, output_dir: Path) -> tuple[Path, Pat
     return output_path, audio_path, run_path, segments_path
 
 
-def _placeholder_cues(duration_seconds: float | None) -> list[SubtitleCue]:
-    if duration_seconds is None:
-        end = 3.0
+def _placeholder_cues(
+    segments: list[SpeechSegment], duration_seconds: float | None
+) -> list[SubtitleCue]:
+    if segments:
+        first = segments[0]
+        start = first.start
+        end = first.end
+        text = (
+            f"[Phase 1] VAD detected {len(segments)} segments. "
+            "ASR/Alignment integration pending."
+        )
     else:
-        end = max(1.0, min(duration_seconds, 10.0))
+        if duration_seconds is None:
+            end = 3.0
+        else:
+            end = max(1.0, min(duration_seconds, 10.0))
+        start = 0.0
+        text = "[Phase 1] Audio extracted. ASR/Alignment integration pending."
     return [
         SubtitleCue(
-            start=0.0,
+            start=start,
             end=end,
-            text="[Phase 1] Audio extracted. ASR/Alignment integration pending.",
+            text=text,
         )
     ]
 
@@ -82,13 +97,27 @@ def transcribe_file(request: TranscribeRequest) -> TranscribeResult:
     try:
         extract_audio(request.input_path, audio_path)
         duration_seconds = probe_duration_seconds(audio_path)
-        write_srt(_placeholder_cues(duration_seconds), output_path)
+        vad_result = detect_speech_segments(
+            audio_path=audio_path,
+            config=request.config,
+            duration_seconds=duration_seconds,
+        )
+        write_srt(_placeholder_cues(vad_result.segments, duration_seconds), output_path)
         write_json(
             segments_path,
             {
-                "segments": [],
+                "segments": [
+                    {
+                        "start": segment.start,
+                        "end": segment.end,
+                        "confidence": segment.confidence,
+                    }
+                    for segment in vad_result.segments
+                ],
                 "duration_seconds": duration_seconds,
-                "note": "VAD/ASR/align not wired yet. Placeholder output.",
+                "vad_backend": vad_result.backend,
+                "vad_message": vad_result.message,
+                "note": "ASR/align not wired yet. Placeholder subtitle output.",
             },
         )
         write_json(
@@ -103,6 +132,9 @@ def transcribe_file(request: TranscribeRequest) -> TranscribeResult:
                 "language": request.language,
                 "device": request.config.device,
                 "duration_seconds": duration_seconds,
+                "vad_backend": vad_result.backend,
+                "vad_segments": len(vad_result.segments),
+                "vad_message": vad_result.message,
             },
         )
         return TranscribeResult(
@@ -112,7 +144,10 @@ def transcribe_file(request: TranscribeRequest) -> TranscribeResult:
             run_path=run_path,
             segments_path=segments_path,
             status="partial",
-            message="Audio extraction complete. VAD/ASR/align integration pending.",
+            message=(
+                "Audio extraction complete. "
+                f"{vad_result.message} ASR/align integration pending."
+            ),
         )
     except Exception as exc:
         write_json(

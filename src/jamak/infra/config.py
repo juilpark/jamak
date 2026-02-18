@@ -8,6 +8,8 @@ from pathlib import Path
 PYTHON_POLICY_CHAIN: tuple[tuple[int, int], ...] = ((3, 14), (3, 13), (3, 12))
 MVP_OUTPUT_FORMAT = "srt"
 SUPPORTED_OUTPUT_FORMATS = {MVP_OUTPUT_FORMAT}
+SUPPORTED_VAD_BACKENDS = {"auto", "firered", "fallback"}
+DEFAULT_FIRERED_VAD_MODEL_DIR = Path("pretrained_models/FireRedVAD/VAD")
 
 
 @dataclass(frozen=True)
@@ -22,6 +24,8 @@ class AppConfig:
     device: str
     hf_cache: Path
     output_format: str
+    vad_backend: str
+    vad_model_dir: Path
     python_policy: PythonPolicyEvaluation
 
 
@@ -87,16 +91,37 @@ def normalize_output_format(value: str) -> str:
     return fmt
 
 
+def normalize_vad_backend(value: str) -> str:
+    backend = value.strip().lower()
+    if backend not in SUPPORTED_VAD_BACKENDS:
+        raise ValueError(
+            f"Unsupported VAD backend '{value}'. Allowed: {sorted(SUPPORTED_VAD_BACKENDS)}"
+        )
+    return backend
+
+
+def resolve_vad_model_dir(custom_path: Path | None = None) -> Path:
+    if custom_path is not None:
+        return custom_path.expanduser().resolve()
+    env_path = os.getenv("JAMAK_FIRERED_VAD_DIR")
+    if env_path:
+        return Path(env_path).expanduser().resolve()
+    return DEFAULT_FIRERED_VAD_MODEL_DIR.resolve()
+
+
 def build_app_config(
     *,
     device: str = "auto",
     hf_cache: Path | None = None,
     output_format: str = MVP_OUTPUT_FORMAT,
+    vad_backend: str = "auto",
+    vad_model_dir: Path | None = None,
 ) -> AppConfig:
     return AppConfig(
         device=normalize_device(device),
         hf_cache=resolve_hf_cache_dir(hf_cache),
         output_format=normalize_output_format(output_format),
+        vad_backend=normalize_vad_backend(vad_backend),
+        vad_model_dir=resolve_vad_model_dir(vad_model_dir),
         python_policy=evaluate_python_policy(),
     )
-

@@ -28,6 +28,12 @@ def transcribe_command(
     ),
     language: str | None = typer.Option(None, "--language", help="Language code hint."),
     device: str = typer.Option("auto", "--device", help="auto|cpu|cuda (MVP)"),
+    vad_backend: str = typer.Option(
+        "auto", "--vad-backend", help="auto|firered|fallback"
+    ),
+    vad_model_dir: Path | None = typer.Option(
+        None, "--vad-model-dir", help="Path to FireRedVAD model directory."
+    ),
     hf_cache: Path | None = typer.Option(
         None, "--hf-cache", help="Custom Hugging Face cache path."
     ),
@@ -36,7 +42,13 @@ def transcribe_command(
     if not input_path.exists():
         raise typer.BadParameter(f"Input not found: {input_path}")
 
-    config = build_app_config(device=device, hf_cache=hf_cache, output_format="srt")
+    config = build_app_config(
+        device=device,
+        hf_cache=hf_cache,
+        output_format="srt",
+        vad_backend=vad_backend,
+        vad_model_dir=vad_model_dir,
+    )
     request = TranscribeRequest(
         input_path=input_path,
         output_dir=output_dir,
@@ -67,6 +79,12 @@ def batch_command(
     ),
     language: str | None = typer.Option(None, "--language", help="Language code hint."),
     device: str = typer.Option("auto", "--device", help="auto|cpu|cuda (MVP)"),
+    vad_backend: str = typer.Option(
+        "auto", "--vad-backend", help="auto|firered|fallback"
+    ),
+    vad_model_dir: Path | None = typer.Option(
+        None, "--vad-model-dir", help="Path to FireRedVAD model directory."
+    ),
     hf_cache: Path | None = typer.Option(
         None, "--hf-cache", help="Custom Hugging Face cache path."
     ),
@@ -75,7 +93,13 @@ def batch_command(
     if not input_dir.exists() or not input_dir.is_dir():
         raise typer.BadParameter(f"Input directory not found: {input_dir}")
 
-    config = build_app_config(device=device, hf_cache=hf_cache, output_format="srt")
+    config = build_app_config(
+        device=device,
+        hf_cache=hf_cache,
+        output_format="srt",
+        vad_backend=vad_backend,
+        vad_model_dir=vad_model_dir,
+    )
     request = BatchRequest(
         input_dir=input_dir,
         output_dir=output_dir,
@@ -98,12 +122,24 @@ def batch_command(
 @app.command("doctor")
 def doctor_command(
     device: str = typer.Option("auto", "--device", help="auto|cpu|cuda (MVP)"),
+    vad_backend: str = typer.Option(
+        "auto", "--vad-backend", help="auto|firered|fallback"
+    ),
+    vad_model_dir: Path | None = typer.Option(
+        None, "--vad-model-dir", help="Path to FireRedVAD model directory."
+    ),
     hf_cache: Path | None = typer.Option(
         None, "--hf-cache", help="Custom Hugging Face cache path."
     ),
 ) -> None:
     """Check runtime readiness (Python/ffmpeg/cache/device)."""
-    config = build_app_config(device=device, hf_cache=hf_cache, output_format="srt")
+    config = build_app_config(
+        device=device,
+        hf_cache=hf_cache,
+        output_format="srt",
+        vad_backend=vad_backend,
+        vad_model_dir=vad_model_dir,
+    )
     report = collect_doctor_report(config)
     typer.echo(render_doctor_report(report))
     if not report.ok:

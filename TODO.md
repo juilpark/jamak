@@ -24,7 +24,7 @@
 ## Phase 1 (로컬 CLI MVP)
 
 - [x] 입력 파일에서 오디오 추출 (`ffmpeg`)
-- [ ] FireRedVAD 연동
+- [x] FireRedVAD 연동 (모델/패키지 준비 시 자동 활성, 미준비 시 fallback)
 - [ ] Qwen3-ASR-1.7B 연동
 - [ ] Qwen3-ForcedAligner-0.6B 연동
 - [ ] 파이프라인 연결 (`VAD -> ASR -> Align -> Subtitle`)

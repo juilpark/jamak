@@ -9,7 +9,9 @@ from jamak.core.pipeline import (
     batch_transcribe,
     transcribe_file,
 )
+from jamak.core.vad import VadRunResult
 from jamak.infra.config import build_app_config
+from jamak.schemas.segment import SpeechSegment
 
 
 def test_transcribe_file_writes_phase1_artifacts(
@@ -24,6 +26,14 @@ def test_transcribe_file_writes_phase1_artifacts(
 
     monkeypatch.setattr("jamak.core.pipeline.extract_audio", fake_extract_audio)
     monkeypatch.setattr("jamak.core.pipeline.probe_duration_seconds", lambda _: 2.5)
+    monkeypatch.setattr(
+        "jamak.core.pipeline.detect_speech_segments",
+        lambda **_: VadRunResult(
+            backend="firered",
+            segments=[SpeechSegment(start=0.1, end=1.4, confidence=0.8)],
+            message="FireRedVAD detected 1 segments.",
+        ),
+    )
 
     result = transcribe_file(
         TranscribeRequest(
@@ -42,6 +52,8 @@ def test_transcribe_file_writes_phase1_artifacts(
     run_payload = json.loads(result.run_path.read_text(encoding="utf-8"))
     assert run_payload["status"] == "partial"
     assert run_payload["phase"] == "phase1-audio-extract"
+    assert run_payload["vad_backend"] == "firered"
+    assert run_payload["vad_segments"] == 1
     assert "ASR/Alignment integration pending" in result.output_path.read_text(
         encoding="utf-8"
     )
@@ -64,4 +76,3 @@ def test_batch_transcribe_returns_failed_for_empty_input(tmp_path: Path) -> None
 
     assert result.status == "failed"
     assert result.total == 0
-
